@@ -1,17 +1,19 @@
-﻿# automata-vs-ml-mbt
+# automata-vs-ml-mbt
 
-Repositório da pesquisa de mestrado sobre **Model-Based Testing (MBT)** com inferência automática de modelos a partir de logs de execução.
+Repositório da pesquisa de mestrado sobre **Comparação entre Automata Learning e Machine Learning** com inferência automática de modelos comportamentais a partir de logs de execução.
 
 ## Visão Geral
 
 Esta pesquisa compara duas estratégias de inferência de modelos comportamentais a partir de logs reais:
 
-- **Aprendizado de Autômatos** — biblioteca [AALpy](https://github.com/DES-Lab/AALpy), algoritmos RPNI, GSM e L*
-- **Aprendizado de Máquina/Estatístico** — framework [Agilkia](https://github.com/PHILAE-PROJECT/agilkia)
+- **Aprendizado de Autômatos** - biblioteca [AALpy](https://github.com/DES-Lab/AALpy), algoritmos RPNI, GSM e L*
+- **Aprendizado Estatístico** - framework [Agilkia](https://github.com/PHILAE-PROJECT/agilkia)
 
-A avaliação é feita através de duas dimensões:
-- **Cobertura** — quantas transições/comportamentos os modelos inferidos cobrem
-- **Conformidade** — capacidade de detectar falhas via teste de mutação (Mutation Score)
+A avaliação é feita através de quatro dimensões:
+- **Cobertura normalizada** - comportamentos únicos capturados por evento do alfabeto
+- **Análise de ruído** - proporção de transições artificiais introduzidas pelo L*
+- **Mutation Score** - capacidade de detecção de falhas
+- **Eficiência do oráculo** - abordagem de Aichernig & Tappler (2017, 2019)
 
 ---
 
@@ -20,32 +22,23 @@ A avaliação é feita através de duas dimensões:
 ```
 automata-vs-ml-mbt/
 ├── notebooks/
-│   └── Quali2.ipynb          # Notebook principal (Google Colab)
+│   ├── Quali2_clean.ipynb               # Pipeline principal — Scanner
+│   └── Quali2_experimentos_bases.ipynb  # Experimentos com datasets adicionais
 ├── data/
-│   └── README_data.md        # Instruções para obter o dataset
-├── results/
-│   ├── mutation_score_comparativo.png
-│   ├── mutation_score_4algoritmos.png
-│   ├── cobertura_comparativa.png
-│   └── tabela_final.csv
+│   └── README_data.md                   # Instruções para obter os datasets
 └── README.md
 ```
 
 ---
 
-## Dataset
+## Datasets
 
-O arquivo de log utilizado é:
-```
-127.0.0.1-1571403244552.csv
-```
-
-Disponível no repositório oficial do Agilkia:
-```
-https://github.com/PHILAE-PROJECT/agilkia/tree/master/examples/scanner
-```
-
-O CSV contém **65.273 eventos** de um sistema de scanner de supermercado, organizados em **4.818 sessões de clientes**, com as colunas: `id`, `timestamp`, `client`, `scan`, `action`, `params`, `status`.
+| Dataset | Domínio | Traces | Eventos | Alfabeto | Status |
+|---------|---------|--------|---------|----------|--------|
+| [Scanner](https://github.com/PHILAE-PROJECT/agilkia/tree/master/examples/scanner) | Varejo | 4.818 | 65.273 | 9 | Resultado da operação |
+| [BPI RfP (2020)](https://data.4tu.nl/datasets/a6f651a7-5ce0-4bc6-8be1-a7747effa1cc) | Processo | 6.886 | 36.796 | 16 | org:role (proxy) |
+| [BPI Loan (2012)](https://data.4tu.nl/articles/dataset/BPI_Challenge_2012/12689204) | Processo | 13.087 | 262.200 | 22 | Derivado da ação |
+| [HDFS Log](https://www.kaggle.com/datasets/ayenuryrr/loghub-hdfs-hadoop-distributed-file-system-data) | Sistema | 1.054 | 2.000 | 14 | Nível do log |
 
 ---
 
@@ -58,43 +51,40 @@ O CSV contém **65.273 eventos** de um sistema de scanner de supermercado, organ
 ### 2. Instalar dependências
 
 ```bash
-pip install aalpy agilkia
+pip install aalpy agilkia pm4py kagglehub
 ```
 
-### 3. Fazer upload do CSV
+### 3. Reprodutibilidade
 
-Ao executar o Passo 2 do notebook, será solicitado o upload do arquivo `127.0.0.1-1571403244552.csv`.
-
-### 4. Executar as células em ordem
-
-O notebook está organizado nas seguintes seções:
-
-| Seção | Descrição |
-|-------|-----------|
-| Passo 1 | Instalação do AALpy |
-| Passo 2 | Parser do CSV e geração do alfabeto |
-| RPNI | Aprendizado passivo — Regular Positive and Negative Inference |
-| GSM | Aprendizado passivo — General State Merging |
-| Autômato Ativo | SUL baseado em Trie + L* (aprendizado ativo) |
-| Cobertura | Métricas de cobertura de transições do modelo |
-| Agilkia | Carregamento dos traces + EventCoverage + EventPairCoverage |
-| Mutação | Operadores de mutação + Mutation Score (AALpy e Agilkia) |
-| Gráficos | Visualizações comparativas e tabela final |
+Todos os experimentos usam `random.seed(42)` — os resultados são determinísticos.
 
 ---
 
 ## Resultados
 
-### Cobertura
+### Análise de Ruído nas MEFs
 
-| Abordagem | Métrica | Resultado |
-|-----------|---------|-----------|
-| AALpy (L*) | Cobertura de transições do modelo | 38.9% |
-| Agilkia | Action+Status Coverage (10 traces) | 84.6% |
-| Agilkia | EventPair Coverage (10 traces) | 68.8% |
-| Agilkia | Saturação completa | 1.000 traces (21% do total) |
+| Dataset | Estados | Trans. Totais | Trans. Reais | Artificiais | Ruído |
+|---------|---------|--------------|-------------|-------------|-------|
+| Scanner | 4 | 36 | 14 | 22 | 61.1% |
+| BPI RfP | 19 | 304 | 62 | 242 | 79.6% |
+| HDFS | 1 | 14 | 0 | 14 | 100.0% |
+| BPI Loan | 15 | 330 | 53 | 277 | 83.9% |
 
-### Mutation Score (n=30 mutantes por operador)
+> O L* introduz transições artificiais para garantir a completude do modelo. Esse ruído cresce com a complexidade do processo e inflaciona o denominador da cobertura bruta do AALpy.
+
+### Cobertura Normalizada (comportamentos por evento do alfabeto)
+
+| Dataset | AALpy/ev | Agilkia/ev | Razão |
+|---------|----------|------------|-------|
+| Scanner | 1.56 | 1.44 | 1.08× |
+| BPI RfP | 3.88 | 1.19 | 3.26× |
+| HDFS | 0.00 | 1.00 | 0.00× |
+| BPI Loan | 2.41 | 1.00 | 2.41× |
+
+> Em domínios estruturados, AALpy captura de 1.08× a 3.26× mais comportamentos por evento. No HDFS (domínio não estruturado), AALpy falha completamente enquanto Agilkia mantém cobertura.
+
+### Mutation Score — Scanner (n=30 mutantes por operador)
 
 | Operador | RPNI | GSM | L* (AALpy) | Agilkia |
 |----------|------|-----|-----------|---------|
@@ -103,84 +93,40 @@ O notebook está organizado nas seguintes seções:
 | remove_evento | 0% | 0% | 53.3% | 100% |
 | **TOTAL** | **0%** | **0%** | **58.9%** | **100%** |
 
-### Modelos Inferidos
+### Oráculo de Aichernig — Scanner
 
-| Algoritmo | Tipo | Estados | Modelo Formal | Verificação Formal |
-|-----------|------|---------|--------------|-------------------|
-| RPNI | Passivo | 1 | DFA | Limitada |
-| GSM | Passivo | 1 | Moore | Limitada |
-| L* (AALpy) | Ativo | 4 | Mealy | Sim |
-| Agilkia | Estatístico | N/A | Não | Não |
+| Métrica | Oráculo Aleatório | Oráculo Aichernig |
+|---------|------------------|-------------------|
+| MQ — Equivalência | 2.000 | 575 |
+| Redução de queries | — | **71%** |
 
 ---
 
-## Operadores de Mutação
+## Principais Achados
 
-Os mutantes foram gerados **manualmente em Python** sobre os traces de log. Não foram usadas ferramentas externas como mutpy ou cosmic-ray, pois essas atuam sobre código fonte Python — não sobre dados de log. Para mutação de dados em MBT não existe ferramenta consolidada na literatura.
+1. **Ruído sistemático:** O L* cria transições artificiais que inflacionam o denominador da cobertura. Esse ruído varia de 61% (Scanner) a 100% (HDFS).
 
-| Operador | Tipo Formal | Descrição | Taxa |
-|----------|-------------|-----------|------|
-| `mutar_output` | Output Fault | Troca o status de eventos aleatoriamente | 5% |
-| `mutar_transicao` | Transfer Fault | Inverte a ordem de eventos consecutivos | 5% |
-| `mutar_remover_evento` | Omission Fault | Remove eventos dos traces | 5% |
+2. **Comparação justa:** A normalização por evento do alfabeto é o único denominador comum entre os dois modelos, permitindo comparação válida.
 
-Reprodutibilidade garantida via `random.seed(42)`.
+3. **Domínios estruturados:** AALpy captura mais comportamentos únicos por evento (razão 1.08× a 3.26×) graças ao contexto de estados.
 
----
+4. **Domínios não estruturados:** Agilkia é mais robusto — no HDFS, AALpy falha completamente enquanto Agilkia captura 1.00 comportamento por evento.
 
-## Métricas de Cobertura Utilizadas
-
-### AALpy — Cobertura de Transições do Modelo
-Implementação manual que percorre os traces reais sobre a MEF aprendida e contabiliza quantas transições foram exercitadas:
-
-```
-Cobertura = transições visitadas / total de transições do modelo
-```
-
-### Agilkia — Cobertura Comportamental
-Classes nativas do framework Agilkia:
-- `EventCoverage` — cobertura de pares (action, status)
-- `EventPairCoverage` — cobertura de pares consecutivos de ações
-
-> **Nota:** `coverage.py` e `gcov` não foram utilizados nesta fase. O gcov será aplicado na fase seguinte de conexão com o sistema real em C, para medir cobertura estrutural de código (linhas e branches) a partir dos testes gerados pelos modelos inferidos.
-
----
-
-## Análise: Cobertura vs Conformidade
-
-| Dimensão | Descrição | Vencedor |
-|----------|-----------|---------|
-| **Cobertura** | Quanto do comportamento foi exercitado | Agilkia (84.6% com 10 traces) |
-| **Conformidade** | Capacidade de verificação formal | AALpy/L* (MEF com 4 estados) |
-
-O Agilkia detecta 100% dos mutantes por comparação direta de pares — qualquer perturbação é detectada. O AALpy/L* detecta 58.9% porque aprende um modelo compacto que abstrai variações pequenas, mas produz uma MEF formalmente verificável e generalizável além dos dados observados.
-
----
-
-## Próximos Passos
-
-- [ ] Implementar mutação do modelo MEF (Opção B) baseada em Aichernig & Tappler (2017, 2019)
-- [ ] Conectar com sistema real em C + gcov para cobertura estrutural
-- [ ] Integrar ESBMC para verificação formal de propriedades da MEF
-- [ ] Análise semântica dos 4 estados do modelo L*
+5. **Aichernig:** Sequências distinguidoras geradas por mutação da MEF reduzem as queries de equivalência em 71% sem perda de qualidade do modelo.
 
 ---
 
 ## Referências
 
-- Aichernig, B. K., & Tappler, M. (2017). *Learning-Based Testing the Sliding Window Protocol*. FMICS.
-- Aichernig, B. K., & Tappler, M. (2019). *Efficient Active Automata Learning via Mutation Testing*. Journal of Automated Reasoning.
-- Delamaro, M. E., Maldonado, J. C., & Jino, M. (2017). *Introdução ao Teste de Software*. Elsevier.
-- Isberner, M., Howar, F., & Steffen, B. (2015). *The Open-Source LearnLib*. CAV.
-- Klarlund, N., & Møller, A. (2001). *MONA Version 1.4 User Manual*.
+- Aichernig, B. K., & Tappler, M. (2017). *Learning from Failing: Mutation Testing in Active Automata Learning*.
+- Aichernig, B. K., & Tappler, M. (2019). *Learning a Behavior Model of Hybrid Systems*. ICTSS.
+- Utting, M., et al. (2020). *Identifying and Generating Missing Tests using Machine Learning on Execution Traces*. AITest.
+- Muškardin, E., et al. (2022). *AALpy: an active automata learning library*. ISSE.
+- Angluin, D. (1987). *Learning regular sets from queries and counterexamples*. Information and Computation.
 
 ---
 
 ## Autor
 
-Pesquisa de Mestrado — em andamento.
-
-Orientadores: Ana Melo e Lucas Cordeiro
-
-Instituição: USP
-
+Pesquisa de Mestrado — IME/USP  
+Orientadores: Ana C. V. de Melo e Lucas C. Cordeiro
